@@ -47,9 +47,7 @@ def load_vgg(sess, vgg_path):
     layer7_out = graph.get_tensor_by_name(vgg_layer7_out_tensor_name)
 
     return input, keep_prob, layer3_out, layer4_out, layer7_out
-
 tests.test_load_vgg(load_vgg, tf)
-
 
 def layers(vgg_layer3_out, vgg_layer4_out, vgg_layer7_out, num_classes):
     """
@@ -60,10 +58,31 @@ def layers(vgg_layer3_out, vgg_layer4_out, vgg_layer7_out, num_classes):
     :param num_classes: Number of classes to classify
     :return: The Tensor for the last layer of output
     """
-    # TODO: Implement function
-    return None
-tests.test_layers(layers)
 
+    # Add 1x1 convolution on top of layer3 and layer4 layer
+    l2_reg = tf.contrib.layers.l2_regularizer(1e-3)
+    layer3_conv1x1 = tf.layers.conv2d(vgg_layer3_out, num_classes, 1, padding='same',
+                                    kernel_regularizer=l2_reg)
+    layer4_conv1x1 = tf.layers.conv2d(vgg_layer4_out, num_classes, 1, padding='same',
+                                    kernel_regularizer=l2_reg)
+
+    # Upsample layer4_conv1x1 using backward stride convolutions
+    layer4_conv1x1_up2x = tf.layers.conv2d_transpose(layer4_conv1x1, num_classes, 2, 2, padding='same',
+                                                    kernel_regularizer=l2_reg)
+
+    # Upsample vgg_layer7_out using backward stride convolutions
+    layer7_up4x = tf.layers.conv2d_transpose(vgg_layer7_out, num_classes, 4, 2, padding='same',
+                                            kernel_regularizer=l2_reg)
+
+    # Fuse previous output all together
+    fuse = tf.add_n([layer3_conv1x1, layer4_conv1x1_up2x, layer7_up4x])
+
+    # Upsample to output segmentation
+    output = tf.layers.conv2d_transpose(fuse, num_classes, 8, 2, padding='same',
+                                        kernel_regularizer=l2_reg)
+
+    return output
+tests.test_layers(layers)
 
 def optimize(nn_last_layer, correct_label, learning_rate, num_classes):
     """
@@ -77,7 +96,6 @@ def optimize(nn_last_layer, correct_label, learning_rate, num_classes):
     # TODO: Implement function
     return None, None, None
 tests.test_optimize(optimize)
-
 
 def train_nn(sess, epochs, batch_size, get_batches_fn, train_op, cross_entropy_loss, input_image,
              correct_label, keep_prob, learning_rate):
@@ -97,7 +115,6 @@ def train_nn(sess, epochs, batch_size, get_batches_fn, train_op, cross_entropy_l
     # TODO: Implement function
     pass
 tests.test_train_nn(train_nn)
-
 
 def run():
     num_classes = 2
