@@ -1,0 +1,10 @@
+name: carnd-seg
+channels:
+    - https://conda.anaconda.org/menpo
+    - conda-forge
+dependencies:
+    - python==3.3.0
+    - numpy
+    - scipy
+    - pip:
+        - tensorflow==1.10.0
