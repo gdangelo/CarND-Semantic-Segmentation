@@ -7,6 +7,11 @@ from distutils.version import LooseVersion
 import project_tests as tests
 
 
+EPOCHS = 10
+BATCH_SIZE = 32
+KEEP_PROB = 0.5
+LEARNING_RATE = 0.001
+
 # Check TensorFlow Version
 assert LooseVersion(tf.__version__) >= LooseVersion('1.0'), 'Please use TensorFlow version 1.0 or newer.  You are using {}'.format(tf.__version__)
 print('TensorFlow Version: {}'.format(tf.__version__))
@@ -25,6 +30,8 @@ def load_vgg(sess, vgg_path):
     :param vgg_path: Path to vgg folder, containing "variables/" and "saved_model.pb"
     :return: Tuple of Tensors from VGG model (image_input, keep_prob, layer3_out, layer4_out, layer7_out)
     """
+
+    print('Loading VGG....\n')
 
     vgg_tag = 'vgg16'
     vgg_input_tensor_name = 'image_input:0'
@@ -59,6 +66,8 @@ def layers(vgg_layer3_out, vgg_layer4_out, vgg_layer7_out, num_classes):
     :param num_classes: Number of classes to classify
     :return: The Tensor for the last layer of output
     """
+
+    print('Building NN....\n')
 
     # Add 1x1 convolution on top of layer3 and layer4 layer
     l2_reg = tf.contrib.layers.l2_regularizer(1e-3)
@@ -138,7 +147,7 @@ def train_nn(sess, epochs, batch_size, get_batches_fn, train_op, cross_entropy_l
         # Generate bacthes of data
         for images, gt_images in get_batches_fn(batch_size):
             # Run training
-            _, loss = sess.run([train_op, cross_entropy_loss], feed_dict={input_image: images, correct_label: gt_images, keep_prob: .5, learning_rate: 1e-3})
+            _, loss = sess.run([train_op, cross_entropy_loss], feed_dict={input_image: images, correct_label: gt_images, keep_prob: KEEP_PROB, learning_rate: LEARNING_RATE})
 
     # After each epoch, print cross entropy loss
     print("EPOCH {}: Loss = {:.3f}".format(i+1, loss))
@@ -168,7 +177,13 @@ def run():
         # OPTIONAL: Augment Images for better results
         #  https://datascience.stackexchange.com/questions/5224/how-to-prepare-augment-images-for-neural-network
 
-        # TODO: Build NN using load_vgg, layers, and optimize function
+        # Build NN using load_vgg, layers, and optimize functions
+        input, keep_prob, vgg_layer3_out, vgg_layer4_out, vgg_layer7_out = load_vgg(sess, vgg_path)
+        nn_last_layer = layers(vgg_layer3_out, vgg_layer4_out, vgg_layer7_out, num_classes)
+
+        correct_label = tf.placeholder(tf.float32, [None, None, None, num_classes])
+        learning_rate = tf.placeholder(tf.float32)
+        logits, train_op, cross_entropy_loss = optimize(nn_last_layer, correct_label, learning_rate, num_classes)
 
         # TODO: Train NN using the train_nn function
 
