@@ -47,6 +47,7 @@ def load_vgg(sess, vgg_path):
     layer7_out = graph.get_tensor_by_name(vgg_layer7_out_tensor_name)
 
     return input, keep_prob, layer3_out, layer4_out, layer7_out
+
 tests.test_load_vgg(load_vgg, tf)
 
 def layers(vgg_layer3_out, vgg_layer4_out, vgg_layer7_out, num_classes):
@@ -82,6 +83,7 @@ def layers(vgg_layer3_out, vgg_layer4_out, vgg_layer7_out, num_classes):
                                         kernel_regularizer=l2_reg)
 
     return output
+
 tests.test_layers(layers)
 
 def optimize(nn_last_layer, correct_label, learning_rate, num_classes):
@@ -106,6 +108,7 @@ def optimize(nn_last_layer, correct_label, learning_rate, num_classes):
     train_op = optimizer.minimize(cross_entropy_loss)
 
     return logits, train_op, cross_entropy_loss
+
 tests.test_optimize(optimize)
 
 def train_nn(sess, epochs, batch_size, get_batches_fn, train_op, cross_entropy_loss, input_image,
@@ -123,9 +126,24 @@ def train_nn(sess, epochs, batch_size, get_batches_fn, train_op, cross_entropy_l
     :param keep_prob: TF Placeholder for dropout keep probability
     :param learning_rate: TF Placeholder for learning rate
     """
-    # TODO: Implement function
-    pass
-#tests.test_train_nn(train_nn)
+
+    print('Training....\n')
+
+    # Init variables
+    sess.run(tf.global_variables_initializer())
+
+    # Go through each epoch
+    loss = 0
+    for i in range(epochs):
+        # Generate bacthes of data
+        for images, gt_images in get_batches_fn(batch_size):
+            # Run training
+            _, loss = sess.run([train_op, cross_entropy_loss], feed_dict={input_image: images, correct_label: gt_images, keep_prob: .5, learning_rate: 1e-3})
+
+    # After each epoch, print cross entropy loss
+    print("EPOCH {}: Loss = {:.3f}".format(i+1, loss))
+
+tests.test_train_nn(train_nn)
 
 def run():
     num_classes = 2
