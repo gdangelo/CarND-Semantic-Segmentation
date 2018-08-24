@@ -10,7 +10,7 @@ dependencies:
     - pillow
     - scipy
     - scikit-image
-    - opencv3
+    - opencv
     - pip:
         - imgaug
         - tensorflow-gpu==1.4
