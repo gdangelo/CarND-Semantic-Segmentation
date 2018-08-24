@@ -6,10 +6,10 @@ import warnings
 from distutils.version import LooseVersion
 import project_tests as tests
 
-EPOCHS = 10
-BATCH_SIZE = 32
+EPOCHS = 50
+BATCH_SIZE = 4
 KEEP_PROB = 0.5
-LEARNING_RATE = 0.001
+LEARNING_RATE = 0.0001
 
 # Check TensorFlow Version
 assert LooseVersion(tf.__version__) >= LooseVersion('1.0'), 'Please use TensorFlow version 1.0 or newer.  You are using {}'.format(tf.__version__)
@@ -160,21 +160,21 @@ def train_nn(sess, epochs, batch_size, get_batches_fn, train_op, cross_entropy_l
     :param learning_rate: TF Placeholder for learning rate
     """
 
-    print('Training...\n')
+    print('Starting training for {} epochs\n'.format(epochs))
 
     # Init variables
     sess.run(tf.global_variables_initializer())
 
     # Go through each epoch
-    loss = 0
     for i in range(epochs):
+        print("EPOCH #{}".format(i+1))
         # Generate bacthes of data
         for images, gt_images in get_batches_fn(batch_size):
             # Run training
             _, loss = sess.run([train_op, cross_entropy_loss], feed_dict={input_image: images, correct_label: gt_images, keep_prob: KEEP_PROB, learning_rate: LEARNING_RATE})
-
-    # After each epoch, print cross entropy loss
-    print("EPOCH {}: Loss = {:.3f}".format(i+1, loss))
+            # After each run, print cross entropy loss
+            print("Loss = {:.3f}".format(loss))
+        print()
 
 tests.test_train_nn(train_nn)
 
