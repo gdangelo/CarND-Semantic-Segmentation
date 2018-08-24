@@ -124,6 +124,7 @@ def optimize(nn_last_layer, correct_label, learning_rate, num_classes):
 
     # Reshape output tensor
     logits = tf.reshape(nn_last_layer, (-1, num_classes))
+    correct_label = tf.reshape(correct_label, (-1,num_classes))
 
     # Build TensorFlow cross entropy loss
     cross_entropy = tf.nn.softmax_cross_entropy_with_logits(labels=correct_label, logits=logits)
