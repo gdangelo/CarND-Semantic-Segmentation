@@ -200,6 +200,7 @@ def train_nn(sess, epochs, batch_size, get_batches_fn, train_op, cross_entropy_l
     print('Starting training for {} epochs\n'.format(epochs))
 
     # Init variables
+    sess.run(tf.local_variables_initializer())
     sess.run(tf.global_variables_initializer())
 
     # Go through each epoch
