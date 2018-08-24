@@ -64,26 +64,48 @@ def layers(vgg_layer3_out, vgg_layer4_out, vgg_layer7_out, num_classes):
     :return: The Tensor for the last layer of output
     """
 
-    # Add 1x1 convolution on top of layer3 and layer4 layer
     l2_reg = tf.contrib.layers.l2_regularizer(1e-3)
+    normal_init = tf.random_normal_initializer(stddev=0.01)
+
+    # Add 1x1 convolution
     layer3_conv1x1 = tf.layers.conv2d(vgg_layer3_out, num_classes, 1, padding='same',
+                                    kernel_initializer=normal_init,
                                     kernel_regularizer=l2_reg)
     layer4_conv1x1 = tf.layers.conv2d(vgg_layer4_out, num_classes, 1, padding='same',
+                                    kernel_initializer=normal_init,
+                                    kernel_regularizer=l2_reg)
+    layer7_conv1x1 = tf.layers.conv2d(vgg_layer7_out, num_classes, 1, padding='same',
+                                    kernel_initializer=normal_init,
                                     kernel_regularizer=l2_reg)
 
-    # Upsample layer4_conv1x1 using backward stride convolutions
-    layer4_conv1x1_up2x = tf.layers.conv2d_transpose(layer4_conv1x1, num_classes, 2, 2, padding='same',
-                                                    kernel_regularizer=l2_reg)
+    # Upsample 7th using backward stride convolutions (x2)
+    layer7_conv1x1_2x = tf.layers.conv2d_transpose(layer7_conv1x1, num_classes,
+                                                kernel_size=4,
+                                                strides=(2, 2),
+                                                padding='same',
+                                                kernel_initializer=normal_init,
+                                                kernel_regularizer=l2_reg)
 
-    # Upsample vgg_layer7_out using backward stride convolutions
-    layer7_up4x = tf.layers.conv2d_transpose(vgg_layer7_out, num_classes, 4, 4, padding='same',
-                                            kernel_regularizer=l2_reg)
+    # Add first skip layer
+    skip1 = tf.add(layer4_conv1x1, layer7_conv1x1_2x)
 
-    # Fuse previous output all together
-    fuse = tf.add_n([layer3_conv1x1, layer4_conv1x1_up2x, layer7_up4x])
+    # Upsample first skip layer using backward stride convolutions (x2)
+    skip1_2x = tf.layers.conv2d_transpose(skip1, num_classes,
+                                        kernel_size=4,
+                                        strides=(2, 2),
+                                        padding='same',
+                                        kernel_initializer=normal_init,
+                                        kernel_regularizer=l2_reg)
+
+    # Add second skip layer
+    skip2 = tf.add(layer3_conv1x1, skip1_2x)
 
     # Upsample to output segmentation
-    output = tf.layers.conv2d_transpose(fuse, num_classes, 8, 8, padding='same',
+    output = tf.layers.conv2d_transpose(skip2, num_classes,
+                                        kernel_size=16,
+                                        strides=(8, 8),
+                                        padding='same',
+                                        kernel_initializer=normal_init,
                                         kernel_regularizer=l2_reg)
 
     return output
