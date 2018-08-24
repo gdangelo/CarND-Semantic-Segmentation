@@ -4,6 +4,7 @@ import tensorflow as tf
 import helper
 import warnings
 from distutils.version import LooseVersion
+import time
 import project_tests as tests
 
 EPOCHS = 50
@@ -136,15 +137,19 @@ def optimize(nn_last_layer, correct_label, learning_rate, num_classes):
     # Compute total loss
     total_loss = cross_entropy_loss + l2_loss
 
+    # Compute accuracy and IOU metrics
+    accuracy, _ = tf.metrics.accuracy(correct_label, logits)
+    mean_iou, _ = tf.metrics.mean_iou(correct_label, logits, num_classes)
+
     # Build TensorFlow Adam optimizer
     optimizer = tf.train.AdamOptimizer(learning_rate=learning_rate)
     train_op = optimizer.minimize(total_loss)
 
-    return logits, train_op, total_loss
+    return logits, train_op, total_loss, accuracy, mean_iou
 
 tests.test_optimize(optimize)
 
-def train_nn(sess, epochs, batch_size, get_batches_fn, train_op, cross_entropy_loss, input_image,
+def train_nn(sess, epochs, batch_size, get_batches_fn, train_op, cross_entropy_loss, accuracy, mean_iou, input_image,
              correct_label, keep_prob, learning_rate):
     """
     Train neural network and print out the loss during training.
@@ -154,6 +159,8 @@ def train_nn(sess, epochs, batch_size, get_batches_fn, train_op, cross_entropy_l
     :param get_batches_fn: Function to get batches of training data.  Call using get_batches_fn(batch_size)
     :param train_op: TF Operation to train the neural network
     :param cross_entropy_loss: TF Tensor for the amount of loss
+    :param accuracy: TF Tensor representing the accuracy
+    :param mean_iou: TF Tensor representing the mean intersection-over-union
     :param input_image: TF Placeholder for input images
     :param correct_label: TF Placeholder for label images
     :param keep_prob: TF Placeholder for dropout keep probability
@@ -167,13 +174,16 @@ def train_nn(sess, epochs, batch_size, get_batches_fn, train_op, cross_entropy_l
 
     # Go through each epoch
     for i in range(epochs):
-        print("EPOCH #{}".format(i+1))
+        print("EPOCH {}".format(i+1))
         # Generate bacthes of data
         for images, gt_images in get_batches_fn(batch_size):
             # Run training
-            _, loss = sess.run([train_op, cross_entropy_loss], feed_dict={input_image: images, correct_label: gt_images, keep_prob: KEEP_PROB, learning_rate: LEARNING_RATE})
-            # After each run, print cross entropy loss
-            print("Loss = {:.3f}".format(loss))
+            t0 = time.time()
+            _, loss, acc, iou = sess.run([train_op, cross_entropy_loss, accuracy, mean_iou], feed_dict={input_image: images, correct_label: gt_images, keep_prob: KEEP_PROB, learning_rate: LEARNING_RATE})
+            t1 = time.time()
+            time_spent = round((t1-t0)*1000)
+            # After each run, print metrics
+            print("Loss = {:.3f}, Accuracy = {:.4f}, IOU = {:.4f} | time = {:.2f}".format(i+1, loss, acc, iou, time_spent))
         print()
 
 tests.test_train_nn(train_nn)
@@ -207,10 +217,10 @@ def run():
 
         correct_label = tf.placeholder(tf.float32, [None, None, None, num_classes])
         learning_rate = tf.placeholder(tf.float32)
-        logits, train_op, cross_entropy_loss = optimize(nn_last_layer, correct_label, learning_rate, num_classes)
+        logits, train_op, cross_entropy_loss, accuracy, mean_iou = optimize(nn_last_layer, correct_label, learning_rate, num_classes)
 
         # Train NN using the train_nn function
-        train_nn(sess, EPOCHS, BATCH_SIZE, get_batches_fn, train_op, cross_entropy_loss, input_image, correct_label, keep_prob, learning_rate)
+        train_nn(sess, EPOCHS, BATCH_SIZE, get_batches_fn, train_op, cross_entropy_loss, accuracy, mean_iou, input_image, correct_label, keep_prob, learning_rate)
 
         # Save inference data using helper.save_inference_samples
         helper.save_inference_samples(runs_dir, data_dir, sess, image_shape, logits, keep_prob, input_image)
