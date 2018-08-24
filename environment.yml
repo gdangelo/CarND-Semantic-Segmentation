@@ -1,0 +1,16 @@
+name: carnd
+channels:
+    - https://conda.anaconda.org/menpo
+    - conda-forge
+dependencies:
+    - python==3.5
+    - six
+    - numpy
+    - tqdm
+    - pillow
+    - scipy
+    - scikit-image
+    - opencv3
+    - pip:
+        - imgaug
+        - tensorflow-gpu==1.4
