@@ -6,6 +6,7 @@ import warnings
 from distutils.version import LooseVersion
 import time
 import project_tests as tests
+from imgaug import augmenters as iaa
 
 EPOCHS = 50
 BATCH_SIZE = 4
@@ -149,6 +150,35 @@ def optimize(nn_last_layer, correct_label, learning_rate, num_classes):
 
 tests.test_optimize(optimize)
 
+def augment_images(images, gt_images):
+    """
+    Apply augmentation techniques to a given batch of images.
+    :param images: Batch of input images
+    :param gt_images: Corresponding batch of label images
+    """
+    # Sometimes(0.5, ...) applies the given augmenter in 50% of all cases,
+    # e.g. Sometimes(0.5, GaussianBlur(0.3)) would blur roughly every second image.
+    sometimes = lambda aug: iaa.Sometimes(0.5, aug)
+
+    # Define our sequence of augmentation steps that will be applied to all or some images
+    seq = iaa.Sequential(
+        [
+            # apply the following augmenters to most images
+            iaa.Fliplr(0.5), # horizontally flip 50% of all images
+            iaa.Flipud(0.2), # vertically flip 20% of all images
+            # blur 50% of images
+            sometimes(GaussianBlur(0.5))
+        ]
+    )
+
+    # Convert the stochastic sequence of augmenters to a deterministic one.
+    # The deterministic sequence will always apply the exactly same effects to the images.
+    seq_det = seq.to_deterministic()
+    images_aug = seq_det.augment_images(images)
+    gt_images_aug = seq_det.augment_images(gt_images)
+
+    return images_aug, gt_images_aug
+
 def train_nn(sess, epochs, batch_size, get_batches_fn, train_op, cross_entropy_loss, accuracy, mean_iou, input_image,
              correct_label, keep_prob, learning_rate):
     """
@@ -175,15 +205,21 @@ def train_nn(sess, epochs, batch_size, get_batches_fn, train_op, cross_entropy_l
     # Go through each epoch
     for i in range(epochs):
         print("EPOCH {}".format(i+1))
+
         # Generate bacthes of data
         for images, gt_images in get_batches_fn(batch_size):
+            # Augment images
+            images_aug, gt_images_aug = augment_images(images, gt_images)
+
             # Run training
             t0 = time.time()
-            _, loss, acc, iou = sess.run([train_op, cross_entropy_loss, accuracy, mean_iou], feed_dict={input_image: images, correct_label: gt_images, keep_prob: KEEP_PROB, learning_rate: LEARNING_RATE})
+            _, loss, acc, iou = sess.run([train_op, cross_entropy_loss, accuracy, mean_iou], feed_dict={input_image: images_aug, correct_label: gt_images_aug, keep_prob: KEEP_PROB, learning_rate: LEARNING_RATE})
             t1 = time.time()
             time_spent = round((t1-t0)*1000)
+
             # After each run, print metrics
             print("Loss = {:.3f}, Accuracy = {:.4f}, IOU = {:.4f} | time = {:.2f}".format(i+1, loss, acc, iou, time_spent))
+
         print()
 
 tests.test_train_nn(train_nn)
@@ -207,9 +243,6 @@ def run():
         vgg_path = os.path.join(data_dir, 'vgg')
         # Create function to get batches
         get_batches_fn = helper.gen_batch_function(os.path.join(data_dir, 'data_road/training'), image_shape)
-
-        # OPTIONAL: Augment Images for better results
-        #  https://datascience.stackexchange.com/questions/5224/how-to-prepare-augment-images-for-neural-network
 
         # Build NN using load_vgg, layers, and optimize functions
         input_image, keep_prob, vgg_layer3_out, vgg_layer4_out, vgg_layer7_out = load_vgg(sess, vgg_path)
