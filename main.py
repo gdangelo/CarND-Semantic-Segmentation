@@ -167,7 +167,7 @@ def augment_images(images, gt_images):
             iaa.Fliplr(0.5), # horizontally flip 50% of all images
             iaa.Flipud(0.2), # vertically flip 20% of all images
             # blur 50% of images
-            sometimes(GaussianBlur(0.5))
+            sometimes(iaa.GaussianBlur(0.5))
         ]
     )
 
