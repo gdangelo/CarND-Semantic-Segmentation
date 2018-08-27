@@ -10,7 +10,7 @@ import tensorflow as tf
 from glob import glob
 from urllib.request import urlretrieve
 from tqdm import tqdm
-
+from imgaug import augmenters as iaa
 
 class DLProgress(tqdm):
     last_block = 0
@@ -57,6 +57,34 @@ def maybe_download_pretrained_vgg(data_dir):
         # Remove zip file to save space
         os.remove(os.path.join(vgg_path, vgg_filename))
 
+def augment_batch(images, gt_images):
+    """
+    Apply augmentation techniques to a given batch of images.
+    :param images: Batch of input images
+    :param gt_images: Corresponding batch of label images
+    """
+    # Sometimes(0.5, ...) applies the given augmenter in 50% of all cases,
+    # e.g. Sometimes(0.5, GaussianBlur(0.3)) would blur roughly every second image.
+    sometimes = lambda aug: iaa.Sometimes(0.5, aug)
+
+    # Define our sequence of augmentation steps that will be applied to all or some images
+    seq = iaa.Sequential(
+        [
+            # apply the following augmenters to most images
+            iaa.Fliplr(0.5), # horizontally flip 50% of all images
+            iaa.Flipud(0.2), # vertically flip 20% of all images
+            # blur 50% of images
+            sometimes(iaa.GaussianBlur(0.5))
+        ]
+    )
+
+    # Convert the stochastic sequence of augmenters to a deterministic one.
+    # The deterministic sequence will always apply the exactly same effects to the images.
+    seq_det = seq.to_deterministic()
+    images_aug = seq_det.augment_images(images)
+    gt_images_aug = seq_det.augment_images(gt_images)
+
+    return images_aug, gt_images_aug
 
 def gen_batch_function(data_folder, image_shape):
     """
@@ -94,7 +122,10 @@ def gen_batch_function(data_folder, image_shape):
                 images.append(image)
                 gt_images.append(gt_image)
 
-            yield np.array(images), np.array(gt_images)
+            # Augment images for each batch
+            images_aug, gt_images_aug = augment_batch(np.array(images), np.array(gt_images))
+
+            yield images_aug, gt_images_aug
     return get_batches_fn
 
 
