@@ -213,7 +213,7 @@ def train_nn(sess, epochs, batch_size, get_batches_fn, train_op,
         # Generate bacthes of data
         for images, gt_images in get_batches_fn(batch_size):
             # Augment images
-            images_aug, gt_images_aug = augment_images(images, gt_images)
+            images_aug, gt_images_aug = augment_batch(images, gt_images)
 
             # Run training
             t0 = time.time()
