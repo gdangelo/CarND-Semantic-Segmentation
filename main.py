@@ -138,9 +138,10 @@ def optimize(nn_last_layer, correct_label, learning_rate, num_classes):
     total_loss = cross_entropy_loss + l2_loss
 
     # Compute accuracy and IOU metrics
-    predictions = tf.argmax(logits, -1)
-    accuracy, accuracy_update = tf.metrics.accuracy(correct_label, predictions)
-    mean_iou, mean_iou_update = tf.metrics.mean_iou(correct_label, predictions, num_classes)
+    predictions = tf.argmax(tf.nn.softmax(logits), -1)
+    labels = tf.argmax(correct_label, -1)
+    accuracy, accuracy_update = tf.metrics.accuracy(labels, predictions)
+    mean_iou, mean_iou_update = tf.metrics.mean_iou(labels, predictions, num_classes)
     metrics_op = tf.group(accuracy_update, mean_iou_update)
 
     # Build TensorFlow Adam optimizer
