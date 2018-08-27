@@ -126,7 +126,7 @@ def optimize(nn_last_layer, correct_label, learning_rate, num_classes):
 
     # Reshape output tensor
     logits = tf.reshape(nn_last_layer, (-1, num_classes))
-    correct_label = tf.reshape(correct_label, (-1,num_classes))
+    correct_label = tf.reshape(correct_label, (-1, num_classes))
 
     # Build TensorFlow cross entropy loss
     cross_entropy = tf.nn.softmax_cross_entropy_with_logits(labels=correct_label, logits=logits)
@@ -139,18 +139,19 @@ def optimize(nn_last_layer, correct_label, learning_rate, num_classes):
     total_loss = cross_entropy_loss + l2_loss
 
     # Compute accuracy and IOU metrics
-    accuracy, _ = tf.metrics.accuracy(correct_label, logits)
-    mean_iou, _ = tf.metrics.mean_iou(correct_label, logits, num_classes)
+    accuracy, accuracy_update = tf.metrics.accuracy(correct_label, logits)
+    mean_iou, mean_iou_update = tf.metrics.mean_iou(correct_label, logits, num_classes)
+    metrics_op = tf.group(accuracy_update, mean_iou_update)
 
     # Build TensorFlow Adam optimizer
     optimizer = tf.train.AdamOptimizer(learning_rate=learning_rate)
     train_op = optimizer.minimize(total_loss)
 
-    return logits, train_op, total_loss, accuracy, mean_iou
+    return logits, train_op, total_loss, accuracy, mean_iou, metrics_op
 
 tests.test_optimize(optimize)
 
-def augment_images(images, gt_images):
+def augment_batch(images, gt_images):
     """
     Apply augmentation techniques to a given batch of images.
     :param images: Batch of input images
@@ -179,8 +180,9 @@ def augment_images(images, gt_images):
 
     return images_aug, gt_images_aug
 
-def train_nn(sess, epochs, batch_size, get_batches_fn, train_op, cross_entropy_loss, accuracy, mean_iou, input_image,
-             correct_label, keep_prob, learning_rate):
+def train_nn(sess, epochs, batch_size, get_batches_fn, train_op,
+            cross_entropy_loss, accuracy, mean_iou, metrics_op,
+            input_image, correct_label, keep_prob, learning_rate):
     """
     Train neural network and print out the loss during training.
     :param sess: TF Session
@@ -191,6 +193,7 @@ def train_nn(sess, epochs, batch_size, get_batches_fn, train_op, cross_entropy_l
     :param cross_entropy_loss: TF Tensor for the amount of loss
     :param accuracy: TF Tensor representing the accuracy
     :param mean_iou: TF Tensor representing the mean intersection-over-union
+    :param metrics_op: TF Tensor representing group operator for metrics (accuracy, iou)
     :param input_image: TF Placeholder for input images
     :param correct_label: TF Placeholder for label images
     :param keep_prob: TF Placeholder for dropout keep probability
@@ -214,19 +217,19 @@ def train_nn(sess, epochs, batch_size, get_batches_fn, train_op, cross_entropy_l
 
             # Run training
             t0 = time.time()
-            _, loss, acc, iou = sess.run([train_op, cross_entropy_loss, accuracy, mean_iou], feed_dict={input_image: images_aug, correct_label: gt_images_aug, keep_prob: KEEP_PROB, learning_rate: LEARNING_RATE})
+            _, loss, acc, iou, _ = sess.run([train_op, cross_entropy_loss, accuracy, mean_iou, metrics_op], feed_dict={input_image: images_aug, correct_label: gt_images_aug, keep_prob: KEEP_PROB, learning_rate: LEARNING_RATE})
             t1 = time.time()
-            time_spent = round((t1-t0)*1000)
+            time_spent = int(round((t1-t0)*1000))
 
             # After each run, print metrics
-            print("Loss = {:.3f}, Accuracy = {:.4f}, IOU = {:.4f} | time = {:.2f}".format(i+1, loss, acc, iou, time_spent))
+            print("Loss = {:.3f}, Accuracy = {:.4f}, IOU = {:.4f} | time = {}ms".format(loss, acc, iou, time_spent))
 
         print()
 
 tests.test_train_nn(train_nn)
 
 def run():
-    num_classes = 2
+    num_classes = 3
     image_shape = (160, 576)
     data_dir = './data'
     runs_dir = './runs'
@@ -251,10 +254,10 @@ def run():
 
         correct_label = tf.placeholder(tf.float32, [None, None, None, num_classes])
         learning_rate = tf.placeholder(tf.float32)
-        logits, train_op, cross_entropy_loss, accuracy, mean_iou = optimize(nn_last_layer, correct_label, learning_rate, num_classes)
+        logits, train_op, cross_entropy_loss, accuracy, mean_iou, metrics_op = optimize(nn_last_layer, correct_label, learning_rate, num_classes)
 
         # Train NN using the train_nn function
-        train_nn(sess, EPOCHS, BATCH_SIZE, get_batches_fn, train_op, cross_entropy_loss, accuracy, mean_iou, input_image, correct_label, keep_prob, learning_rate)
+        train_nn(sess, EPOCHS, BATCH_SIZE, get_batches_fn, train_op, cross_entropy_loss, accuracy, mean_iou, metrics_op, input_image, correct_label, keep_prob, learning_rate)
 
         # Save inference data using helper.save_inference_samples
         helper.save_inference_samples(runs_dir, data_dir, sess, image_shape, logits, keep_prob, input_image)
