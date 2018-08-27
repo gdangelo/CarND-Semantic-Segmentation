@@ -184,7 +184,7 @@ def train_nn(sess, epochs, batch_size, get_batches_fn, train_op,
         for images, gt_images in get_batches_fn(batch_size):
             # Run training
             t0 = time.time()
-            _, loss, acc, iou, _ = sess.run([train_op, cross_entropy_loss, accuracy, mean_iou, metrics_op], feed_dict={input_image: images_aug, correct_label: gt_images_aug, keep_prob: KEEP_PROB, learning_rate: LEARNING_RATE})
+            _, loss, acc, iou, _ = sess.run([train_op, cross_entropy_loss, accuracy, mean_iou, metrics_op], feed_dict={input_image: images, correct_label: gt_images, keep_prob: KEEP_PROB, learning_rate: LEARNING_RATE})
             t1 = time.time()
             time_spent = int(round((t1-t0)*1000))
 
