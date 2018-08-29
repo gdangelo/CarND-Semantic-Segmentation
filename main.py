@@ -211,6 +211,9 @@ def run():
     # You'll need a GPU with at least 10 teraFLOPS to train on.
     #  https://www.cityscapes-dataset.com/
 
+    # Add ops to save all the graph variables.
+    saver = tf.train.Saver()
+
     with tf.Session() as sess:
         # Path to vgg model
         vgg_path = os.path.join(data_dir, 'vgg')
@@ -227,6 +230,10 @@ def run():
 
         # Train NN using the train_nn function
         train_nn(sess, EPOCHS, BATCH_SIZE, get_batches_fn, train_op, cross_entropy_loss, accuracy, mean_iou, metrics_op, input_image, correct_label, keep_prob, learning_rate)
+
+        # Save the variables to disk
+        save_path = saver.save(sess, "/model/model.ckpt")
+        print("Model saved in path: %s" % save_path)
 
         # Save inference data using helper.save_inference_samples
         helper.save_inference_samples(runs_dir, data_dir, sess, image_shape, logits, keep_prob, input_image)
