@@ -68,7 +68,7 @@ def augment_batch(images, gt_images):
     sometimes = lambda aug: iaa.Sometimes(0.5, aug)
 
     # Define our sequence of augmentation steps that will be applied to all or some images
-    seq = iaa.Sequential(
+    seq1 = iaa.Sequential(
         [
             # apply the following augmenters to most images
             iaa.Fliplr(0.5), # horizontally flip 50% of all images
@@ -76,11 +76,37 @@ def augment_batch(images, gt_images):
         ]
     )
 
+    seq2 = iaa.Sequential(
+        [
+            iaa.Affine(rotate=(-45, 45)), # rotate by -45 to +45 degrees
+            # execute 0 to 5 of the following augmenters per image
+            # don't execute all of them, as that would often be way too strong
+            iaa.SomeOf((0, 5),
+                [
+                    iaa.AddToHueAndSaturation((-20, 20)), # change hue and saturation
+                    # either change the brightness of the whole image (sometimes
+                    # per channel) or change the brightness of subareas
+                    iaa.OneOf([
+                        iaa.Multiply((0.5, 1.5), per_channel=0.5),
+                        iaa.FrequencyNoiseAlpha(
+                            exponent=(-4, 0),
+                            first=iaa.Multiply((0.5, 1.5), per_channel=True),
+                            second=iaa.ContrastNormalization((0.5, 2.0))
+                        )
+                    ])
+                ]
+        ]
+    )
+
     # Convert the stochastic sequence of augmenters to a deterministic one.
     # The deterministic sequence will always apply the exactly same effects to the images.
-    seq_det = seq.to_deterministic()
-    images_aug = seq_det.augment_images(images)
-    gt_images_aug = seq_det.augment_images(gt_images)
+    seq1_det = seq1.to_deterministic()
+    seq2_det = seq2.to_deterministic()
+
+    images_aug = seq1_det.augment_images(images)
+    images_aug = seq2_det.augment_images(images_aug)
+    gt_images_aug = seq1_det.augment_images(gt_images)
+    gt_images_aug = seq2_det.augment_images(gt_images_aug)
 
     return images_aug, gt_images_aug
 
