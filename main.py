@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-import os.path
+import os
 import tensorflow as tf
 import helper
 import warnings
@@ -7,10 +7,12 @@ from distutils.version import LooseVersion
 import time
 import project_tests as tests
 
-EPOCHS = 50
-BATCH_SIZE = 4
+EPOCHS = 30
+BATCH_SIZE = 16
 KEEP_PROB = 0.5
-LEARNING_RATE = 0.0001
+LEARNING_RATE = 0.00001
+L2_SCALE = 1e-3
+STDDEV = 0.01
 
 # Check TensorFlow Version
 assert LooseVersion(tf.__version__) >= LooseVersion('1.0'), 'Please use TensorFlow version 1.0 or newer.  You are using {}'.format(tf.__version__)
@@ -65,8 +67,8 @@ def layers(vgg_layer3_out, vgg_layer4_out, vgg_layer7_out, num_classes):
     :return: The Tensor for the last layer of output
     """
 
-    l2_reg = tf.contrib.layers.l2_regularizer(1e-3)
-    normal_init = tf.random_normal_initializer(stddev=0.01)
+    l2_reg = tf.contrib.layers.l2_regularizer(L2_SCALE)
+    normal_init = tf.random_normal_initializer(STDDEV)
 
     # Add 1x1 convolution
     layer3_conv1x1 = tf.layers.conv2d(vgg_layer3_out, num_classes, 1, padding='same',
@@ -230,7 +232,9 @@ def run():
 
         # Save the all the graph variables to disk
         saver = tf.train.Saver()
-        save_path = saver.save(sess, "/model/model.ckpt")
+        if not os.path.isdir("./model"):
+            os.makedirs("./model")
+        save_path = saver.save(sess, "./model/model.ckpt")
         print("Model saved in path: %s" % save_path)
 
         # Save inference data using helper.save_inference_samples
