@@ -95,6 +95,7 @@ def augment_batch(images, gt_images):
                         )
                     ])
                 ]
+            )
         ]
     )
 
