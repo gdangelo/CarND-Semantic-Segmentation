@@ -73,8 +73,6 @@ def augment_batch(images, gt_images):
             # apply the following augmenters to most images
             iaa.Fliplr(0.5), # horizontally flip 50% of all images
             iaa.Flipud(0.2), # vertically flip 20% of all images
-            # blur 50% of images
-            sometimes(iaa.GaussianBlur(0.5))
         ]
     )
 
