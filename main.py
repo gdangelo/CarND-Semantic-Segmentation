@@ -5,12 +5,15 @@ import helper
 import warnings
 from distutils.version import LooseVersion
 import time
+import math
 import project_tests as tests
 
-EPOCHS = 30
+EPOCHS = 100
 BATCH_SIZE = 16
 KEEP_PROB = 0.5
-LEARNING_RATE = 0.00001
+INIT_LEARNING_RATE = 1e-5
+LR_DECAY_FACTOR = 1e-1
+EPOCHS_PER_DECAY = 50
 L2_SCALE = 1e-3
 STDDEV = 0.01
 
@@ -68,7 +71,7 @@ def layers(vgg_layer3_out, vgg_layer4_out, vgg_layer7_out, num_classes):
     """
 
     l2_reg = tf.contrib.layers.l2_regularizer(L2_SCALE)
-    normal_init = tf.random_normal_initializer(STDDEV)
+    normal_init = tf.random_normal_initializer(stddev=STDDEV)
 
     # Add 1x1 convolution
     layer3_conv1x1 = tf.layers.conv2d(vgg_layer3_out, num_classes, 1, padding='same',
@@ -115,7 +118,7 @@ def layers(vgg_layer3_out, vgg_layer4_out, vgg_layer7_out, num_classes):
 
 tests.test_layers(layers)
 
-def optimize(nn_last_layer, correct_label, learning_rate, num_classes):
+def optimize(nn_last_layer, correct_label, learning_rate, num_classes, global_step):
     """
     Build the TensorFLow loss and optimizer operations.
     :param nn_last_layer: TF Tensor of the last layer in the neural network
@@ -148,7 +151,7 @@ def optimize(nn_last_layer, correct_label, learning_rate, num_classes):
 
     # Build TensorFlow Adam optimizer
     optimizer = tf.train.AdamOptimizer(learning_rate=learning_rate)
-    train_op = optimizer.minimize(total_loss)
+    train_op = optimizer.minimize(total_loss, global_step=global_step)
 
     return logits, train_op, total_loss, accuracy, mean_iou, metrics_op
 
@@ -188,7 +191,7 @@ def train_nn(sess, epochs, batch_size, get_batches_fn, train_op,
         for images, gt_images in get_batches_fn(batch_size):
             # Run training
             t0 = time.time()
-            _, loss, acc, iou, _ = sess.run([train_op, cross_entropy_loss, accuracy, mean_iou, metrics_op], feed_dict={input_image: images, correct_label: gt_images, keep_prob: KEEP_PROB, learning_rate: LEARNING_RATE})
+            _, loss, acc, iou, _ = sess.run([train_op, cross_entropy_loss, accuracy, mean_iou, metrics_op], feed_dict={input_image: images, correct_label: gt_images, keep_prob: KEEP_PROB, learning_rate: learning_rate})
             t1 = time.time()
             time_spent = int(round((t1-t0)*1000))
 
@@ -198,6 +201,31 @@ def train_nn(sess, epochs, batch_size, get_batches_fn, train_op,
         print()
 
 tests.test_train_nn(train_nn)
+
+def learning_rate(global_step, initial_learning_rate, decay_rate, num_epochs_per_decay):
+    """
+    Define exponentially decaying learning rate.
+    :param global_step: Variable counting the number of training steps processed
+    :param initial_learning_rate: Initial learning rate
+    :param decay_rate: Rate factor for learning rate
+    :param num_epochs_per_decay: Number of epochs after which we should decay the learning rate
+    :return: Learning rate
+    """
+
+    # Compute number of batches per epoch
+    nb_images = len(glob(os.path.join('./data/data_road/training', 'image_2', '*.png')))
+    num_batches_per_epoch = math.ceil(nb_images / float(BATCH_SIZE))
+
+    # Compute decay steps for learning rate
+    decay_steps = int(num_batches_per_epoch * num_epochs_per_decay)
+
+    # Define learning rate
+    return tf.train.exponential_decay(
+                learning_rate = initial_learning_rate,
+                global_step = global_step,
+                decay_steps = decay_steps,
+                decay_rate = decay_rate,
+                staircase = True)
 
 def run():
     num_classes = 2
@@ -223,9 +251,13 @@ def run():
         input_image, keep_prob, vgg_layer3_out, vgg_layer4_out, vgg_layer7_out = load_vgg(sess, vgg_path)
         nn_last_layer = layers(vgg_layer3_out, vgg_layer4_out, vgg_layer7_out, num_classes)
 
+        # Define exp dacay learning rate
+        global_step = tf.train.get_or_create_global_step()
+        learning_rate = learning_rate(global_step, INIT_LEARNING_RATE, LR_DECAY_FACTOR, EPOCHS_PER_DECAY)
+
+        # Build the TF loss, metrics, and optimizer operations
         correct_label = tf.placeholder(tf.float32, [None, None, None, num_classes])
-        learning_rate = tf.placeholder(tf.float32)
-        logits, train_op, cross_entropy_loss, accuracy, mean_iou, metrics_op = optimize(nn_last_layer, correct_label, learning_rate, num_classes)
+        logits, train_op, cross_entropy_loss, accuracy, mean_iou, metrics_op = optimize(nn_last_layer, correct_label, learning_rate, num_classes, global_step)
 
         # Train NN using the train_nn function
         train_nn(sess, EPOCHS, BATCH_SIZE, get_batches_fn, train_op, cross_entropy_loss, accuracy, mean_iou, metrics_op, input_image, correct_label, keep_prob, learning_rate)

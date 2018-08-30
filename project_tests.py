@@ -98,7 +98,8 @@ def test_optimize(optimize):
     layers_output = tf.Variable(tf.zeros(shape))
     correct_label = tf.placeholder(tf.float32, [None, None, None, num_classes])
     learning_rate = tf.placeholder(tf.float32)
-    logits, train_op, cross_entropy_loss, accuracy, mean_iou, metrics_op = optimize(layers_output, correct_label, learning_rate, num_classes)
+    global_step = tf.Variable(0, trainable=False)
+    logits, train_op, cross_entropy_loss, accuracy, mean_iou, metrics_op = optimize(layers_output, correct_label, learning_rate, num_classes, global_step)
 
     _assert_tensor_shape(logits, [2*3*4, num_classes], 'Logits')
 
