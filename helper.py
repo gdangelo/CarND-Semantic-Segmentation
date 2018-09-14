@@ -10,7 +10,6 @@ import tensorflow as tf
 from glob import glob
 from urllib.request import urlretrieve
 from tqdm import tqdm
-from imgaug import augmenters as iaa
 
 class DLProgress(tqdm):
     last_block = 0
@@ -57,59 +56,6 @@ def maybe_download_pretrained_vgg(data_dir):
         # Remove zip file to save space
         os.remove(os.path.join(vgg_path, vgg_filename))
 
-def augment_batch(images, gt_images):
-    """
-    Apply augmentation techniques to a given batch of images.
-    :param images: Batch of input images
-    :param gt_images: Corresponding batch of label images
-    """
-    # Sometimes(0.5, ...) applies the given augmenter in 50% of all cases,
-    # e.g. Sometimes(0.5, GaussianBlur(0.3)) would blur roughly every second image.
-    sometimes = lambda aug: iaa.Sometimes(0.5, aug)
-
-    # Define our sequence of augmentation steps that will be applied to all or some images
-    seq1 = iaa.Sequential(
-        [
-            # apply the following augmenters to most images
-            iaa.Fliplr(0.5), # horizontally flip 50% of all images
-            iaa.Flipud(0.2), # vertically flip 20% of all images
-        ]
-    )
-
-    seq2 = iaa.Sequential(
-        [
-            iaa.Affine(rotate=(-45, 45)), # rotate by -45 to +45 degrees
-            # execute 0 to 5 of the following augmenters per image
-            # don't execute all of them, as that would often be way too strong
-            iaa.SomeOf((0, 5),
-                [
-                    iaa.AddToHueAndSaturation((-20, 20)), # change hue and saturation
-                    # either change the brightness of the whole image (sometimes
-                    # per channel) or change the brightness of subareas
-                    iaa.OneOf([
-                        iaa.Multiply((0.5, 1.5), per_channel=0.5),
-                        iaa.FrequencyNoiseAlpha(
-                            exponent=(-4, 0),
-                            first=iaa.Multiply((0.5, 1.5), per_channel=True),
-                            second=iaa.ContrastNormalization((0.5, 2.0))
-                        )
-                    ])
-                ]
-            )
-        ]
-    )
-
-    # Convert the stochastic sequence of augmenters to a deterministic one.
-    # The deterministic sequence will always apply the exactly same effects to the images.
-    seq1_det = seq1.to_deterministic()
-    seq2_det = seq2.to_deterministic()
-
-    images_aug = seq1_det.augment_images(images)
-    images_aug = seq2_det.augment_images(images_aug)
-    gt_images_aug = seq1_det.augment_images(gt_images)
-    gt_images_aug = seq2_det.augment_images(gt_images_aug)
-
-    return images_aug, gt_images_aug
 
 def gen_batch_function(data_folder, image_shape):
     """
@@ -146,9 +92,6 @@ def gen_batch_function(data_folder, image_shape):
 
                 images.append(image)
                 gt_images.append(gt_image)
-
-            # Augment images for each batch
-            images_aug, gt_images_aug = augment_batch(np.array(images), np.array(gt_images))
 
             yield images_aug, gt_images_aug
     return get_batches_fn
