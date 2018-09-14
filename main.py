@@ -6,12 +6,13 @@ import warnings
 from distutils.version import LooseVersion
 import time
 import math
+from glob import glob
 import project_tests as tests
 
 EPOCHS = 100
 BATCH_SIZE = 16
 KEEP_PROB = 0.5
-INIT_LEARNING_RATE = 1e-5
+INIT_LEARNING_RATE = 1e-4
 LR_DECAY_FACTOR = 1e-1
 EPOCHS_PER_DECAY = 50
 L2_SCALE = 1e-3
@@ -191,12 +192,12 @@ def train_nn(sess, epochs, batch_size, get_batches_fn, train_op,
         for images, gt_images in get_batches_fn(batch_size):
             # Run training
             t0 = time.time()
-            _, loss, acc, iou, _ = sess.run([train_op, cross_entropy_loss, accuracy, mean_iou, metrics_op], feed_dict={input_image: images, correct_label: gt_images, keep_prob: KEEP_PROB, learning_rate: learning_rate})
+            _, loss, acc, iou, lr, _ = sess.run([train_op, cross_entropy_loss, accuracy, mean_iou, learning_rate, metrics_op], feed_dict={input_image: images, correct_label: gt_images, keep_prob: KEEP_PROB})
             t1 = time.time()
             time_spent = int(round((t1-t0)*1000))
 
             # After each run, print metrics
-            print("Loss = {:.3f}, Accuracy = {:.4f}, IOU = {:.4f} | time = {}ms".format(loss, acc, iou, time_spent))
+            print("Loss = {:.3f}, Accuracy = {:.4f}, IOU = {:.4f}, LR = {:.2e} | time = {}ms".format(loss, acc, iou, lr, time_spent))
 
         print()
 
@@ -253,14 +254,14 @@ def run():
 
         # Define exp dacay learning rate
         global_step = tf.train.get_or_create_global_step()
-        learning_rate = learning_rate(global_step, INIT_LEARNING_RATE, LR_DECAY_FACTOR, EPOCHS_PER_DECAY)
+        lr = learning_rate(global_step, INIT_LEARNING_RATE, LR_DECAY_FACTOR, EPOCHS_PER_DECAY)
 
         # Build the TF loss, metrics, and optimizer operations
         correct_label = tf.placeholder(tf.float32, [None, None, None, num_classes])
-        logits, train_op, cross_entropy_loss, accuracy, mean_iou, metrics_op = optimize(nn_last_layer, correct_label, learning_rate, num_classes, global_step)
+        logits, train_op, cross_entropy_loss, accuracy, mean_iou, metrics_op = optimize(nn_last_layer, correct_label, lr, num_classes, global_step)
 
         # Train NN using the train_nn function
-        train_nn(sess, EPOCHS, BATCH_SIZE, get_batches_fn, train_op, cross_entropy_loss, accuracy, mean_iou, metrics_op, input_image, correct_label, keep_prob, learning_rate)
+        train_nn(sess, EPOCHS, BATCH_SIZE, get_batches_fn, train_op, cross_entropy_loss, accuracy, mean_iou, metrics_op, input_image, correct_label, keep_prob, lr)
 
         # Save the all the graph variables to disk
         saver = tf.train.Saver()
