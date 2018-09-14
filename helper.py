@@ -10,6 +10,7 @@ import tensorflow as tf
 from glob import glob
 from urllib.request import urlretrieve
 from tqdm import tqdm
+from moviepy.editor import VideoFileClip
 
 class DLProgress(tqdm):
     last_block = 0
@@ -94,7 +95,7 @@ def gen_batch_function(data_folder, image_shape):
                 gt_images.append(gt_image)
 
             yield images, gt_images
-            
+
     return get_batches_fn
 
 
@@ -138,3 +139,47 @@ def save_inference_samples(runs_dir, data_dir, sess, image_shape, logits, keep_p
         sess, logits, keep_prob, input_image, os.path.join(data_dir, 'data_road/testing'), image_shape)
     for name, image in image_outputs:
         scipy.misc.imsave(os.path.join(output_dir, name), image)
+
+    print('Done.')
+
+
+def inference_on_frame(frame, image_shape):
+    image = scipy.misc.imresize(scipy.misc.imread(frame), image_shape)
+
+    im_logits = sess.run(['logits:0'], {keep_prob: 1.0, image_pl: [image]})
+    im_softmax = tf.nn.softmax(im_logits)
+    im_softmax = im_softmax[0][:, 1].reshape(image_shape[0], image_shape[1])
+    segmentation = (im_softmax > 0.5).reshape(image_shape[0], image_shape[1], 1)
+    mask = np.dot(segmentation, np.array([[0, 255, 0, 127]]))
+    mask = scipy.misc.toimage(mask, mode="RGBA")
+    street_im = scipy.misc.toimage(image)
+    street_im.paste(mask, box=None, mask=mask)
+
+    return np.array(street_im)
+
+def inference_on_video(video_path, image_shape):
+    print('Processing test video: {}'.format(video_path))
+
+    # Reset graph
+    tf.reset_default_graph()
+
+    # Import the graph from disk
+    graph = tf.train.import_meta_graph('saved_variable.meta')
+
+    # Launch the model, restore variables from disk, and do inference on video
+    with tf.Session() as sess:
+      # Restore variables from disk
+      graph.restore(sess, "./model/model.ckpt")
+
+      # Read video file
+      video_input = VideoFileClip(video_path)
+
+      # Process each frame of the video
+      processed_video = video_input.fl_image(lambda img: inference_on_frame(img, image_shape))
+
+      # Save new processed video
+      video_name_out = 'result_' + os.path.basename(video_path)
+      video_dir_out = os.path.dirname(video_path)
+      processed_video.write_videofile(os.path.join(video_dir_out, video_name_out), audio=False)
+
+      print('Done.')

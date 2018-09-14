@@ -265,10 +265,11 @@ def run():
         print("Model saved in path: %s \n" % save_path)
 
         # Save inference data using helper.save_inference_samples
-        #helper.save_inference_samples(runs_dir, data_dir, sess, image_shape, logits, keep_prob, input_image)
+        helper.save_inference_samples(runs_dir, data_dir, sess, image_shape, logits, keep_prob, input_image)
 
         # Apply the trained model to a video
-        # TODO
+        video_path = './video/test_video.mp4'
+        helper.inference_on_video(video_path, image_shape)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()

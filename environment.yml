@@ -11,6 +11,8 @@ dependencies:
     - scipy
     - scikit-image
     - opencv
+    - ffmpeg
     - pip:
+        - moviepy
         - imgaug
         - tensorflow-gpu==1.4
