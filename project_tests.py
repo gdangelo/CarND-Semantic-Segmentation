@@ -150,9 +150,9 @@ def test_train_nn(train_nn):
 @test_safe
 def test_for_kitti_dataset(data_dir):
     kitti_dataset_path = os.path.join(data_dir, 'data_road')
-    training_labels_count = len(glob(os.path.join(kitti_dataset_path, 'training/gt_image_2/*_road_*.png')))
-    training_images_count = len(glob(os.path.join(kitti_dataset_path, 'training/image_2/*.png')))
-    testing_images_count = len(glob(os.path.join(kitti_dataset_path, 'testing/image_2/*.png')))
+    training_labels_count = len(fn for fn in glob(os.path.join(kitti_dataset_path, 'training/gt_image_2/*_road_*.png')) if 'aug' not in os.path.basename(fn))
+    training_images_count = len(fn for fn in glob(os.path.join(kitti_dataset_path, 'training/image_2/*.png')) if 'aug' not in os.path.basename(fn))
+    testing_images_count = len(fn for fn in glob(os.path.join(kitti_dataset_path, 'testing/image_2/*.png')) if 'aug' not in os.path.basename(fn))
 
     assert not (training_images_count == training_labels_count == testing_images_count == 0),\
         'Kitti dataset not found. Extract Kitti dataset in {}'.format(kitti_dataset_path)
