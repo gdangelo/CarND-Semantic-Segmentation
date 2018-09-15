@@ -143,21 +143,21 @@ def save_inference_samples(runs_dir, data_dir, sess, image_shape, logits, keep_p
     print('Done.')
 
 
-def inference_on_frame(sess, logits, keep_prob, input_image, frame, image_shape):
-    image = scipy.misc.imresize(frame, image_shape)
+def inference_on_frame(sess, logits, keep_prob, input_image, frame):
+    frame = scipy.misc.imresize(frame, (640, 1152))
+    image_shape = frame.shape
 
     im_softmax = sess.run([tf.nn.softmax(logits)], {keep_prob: 1.0, input_image: [frame]})
     im_softmax = im_softmax[0][:, 1].reshape(image_shape[0], image_shape[1])
     segmentation = (im_softmax > 0.5).reshape(image_shape[0], image_shape[1], 1)
     mask = np.dot(segmentation, np.array([[0, 255, 0, 127]]))
     mask = scipy.misc.toimage(mask, mode="RGBA")
-    street_im = scipy.misc.toimage(image)
+    street_im = scipy.misc.toimage(frame)
     street_im.paste(mask, box=None, mask=mask)
 
     return np.array(street_im)
-    return frame
 
-def inference_on_video(video_path, image_shape):
+def inference_on_video(video_path):
     print('Processing test video: {}'.format(video_path))
 
     # Import the graph from disk
@@ -178,11 +178,9 @@ def inference_on_video(video_path, image_shape):
         video_input = VideoFileClip(video_path)
 
         # Process each frame of the video
-        processed_video = video_input.fl_image(lambda frame: inference_on_frame(sess, logits, keep_prob, input_image, frame, image_shape))
+        processed_video = video_input.fl_image(lambda frame: inference_on_frame(sess, logits, keep_prob, input_image, frame))
 
         # Save new processed video
         video_name_out = 'result_' + os.path.basename(video_path)
         video_dir_out = os.path.dirname(video_path)
         processed_video.write_videofile(os.path.join(video_dir_out, video_name_out), audio=False)
-
-        print('Done.')
