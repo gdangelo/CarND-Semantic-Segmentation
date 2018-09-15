@@ -143,11 +143,10 @@ def save_inference_samples(runs_dir, data_dir, sess, image_shape, logits, keep_p
     print('Done.')
 
 
-def inference_on_frame(frame, image_shape):
-    image = scipy.misc.imresize(scipy.misc.imread(frame), image_shape)
+def inference_on_frame(sess, logits, keep_prob, input_image, frame, image_shape):
+    image = scipy.misc.imresize(frame, image_shape)
 
-    im_logits = sess.run(['logits:0'], {keep_prob: 1.0, image_pl: [image]})
-    im_softmax = tf.nn.softmax(im_logits)
+    im_softmax = sess.run([tf.nn.softmax(logits)], {keep_prob: 1.0, input_image: [frame]})
     im_softmax = im_softmax[0][:, 1].reshape(image_shape[0], image_shape[1])
     segmentation = (im_softmax > 0.5).reshape(image_shape[0], image_shape[1], 1)
     mask = np.dot(segmentation, np.array([[0, 255, 0, 127]]))
@@ -156,30 +155,34 @@ def inference_on_frame(frame, image_shape):
     street_im.paste(mask, box=None, mask=mask)
 
     return np.array(street_im)
+    return frame
 
 def inference_on_video(video_path, image_shape):
     print('Processing test video: {}'.format(video_path))
 
-    # Reset graph
-    tf.reset_default_graph()
-
     # Import the graph from disk
-    graph = tf.train.import_meta_graph('saved_variable.meta')
+    saver = tf.train.import_meta_graph('./model/model.ckpt.meta')
 
     # Launch the model, restore variables from disk, and do inference on video
     with tf.Session() as sess:
-      # Restore variables from disk
-      graph.restore(sess, "./model/model.ckpt")
+        # Restore variables from disk
+        saver.restore(sess, tf.train.latest_checkpoint('./model'))
 
-      # Read video file
-      video_input = VideoFileClip(video_path)
+        # Access tensor variables
+        graph = tf.get_default_graph()
+        logits = graph.get_tensor_by_name("logits:0")
+        keep_prob = graph.get_tensor_by_name("keep_prob:0")
+        input_image = graph.get_tensor_by_name("image_input:0")
 
-      # Process each frame of the video
-      processed_video = video_input.fl_image(lambda img: inference_on_frame(img, image_shape))
+        # Read video file
+        video_input = VideoFileClip(video_path)
 
-      # Save new processed video
-      video_name_out = 'result_' + os.path.basename(video_path)
-      video_dir_out = os.path.dirname(video_path)
-      processed_video.write_videofile(os.path.join(video_dir_out, video_name_out), audio=False)
+        # Process each frame of the video
+        processed_video = video_input.fl_image(lambda frame: inference_on_frame(sess, logits, keep_prob, input_image, frame, image_shape))
 
-      print('Done.')
+        # Save new processed video
+        video_name_out = 'result_' + os.path.basename(video_path)
+        video_dir_out = os.path.dirname(video_path)
+        processed_video.write_videofile(os.path.join(video_dir_out, video_name_out), audio=False)
+
+        print('Done.')
