@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import sys
 import os
 import tensorflow as tf
 import helper
@@ -13,7 +14,7 @@ import project_tests as tests
 FLAGS = None
 
 # Check TensorFlow Version
-assert LooseVersion(tf.__version__) >= LooseVersion('1.0'), 'Please use TensorFlow version 1.0 or newer.  You are using {}'.format(tf.__version__)
+assert LooseVersion(tf.__version__) >= LooseVersion('1.0'), 'Please use TensorFlow version 1.0 or newer. You are using {}'.format(tf.__version__)
 print('TensorFlow Version: {}'.format(tf.__version__))
 
 # Check for a GPU
@@ -53,9 +54,9 @@ def load_vgg(sess, vgg_path):
 
     return input, keep_prob, layer3_out, layer4_out, layer7_out
 
-tests.test_load_vgg(load_vgg, tf)
+#tests.test_load_vgg(load_vgg, tf)
 
-def layers(vgg_layer3_out, vgg_layer4_out, vgg_layer7_out, num_classes):
+def layers(vgg_layer3_out, vgg_layer4_out, vgg_layer7_out, num_classes, l2_scale, normal_stddev):
     """
     Create the layers for a fully convolutional network.  Build skip-layers using the vgg layers.
     :param vgg_layer3_out: TF Tensor for VGG Layer 3 output
@@ -65,8 +66,8 @@ def layers(vgg_layer3_out, vgg_layer4_out, vgg_layer7_out, num_classes):
     :return: The Tensor for the last layer of output
     """
 
-    l2_reg = tf.contrib.layers.l2_regularizer(FLAGS.L2_SCALE)
-    normal_init = tf.random_normal_initializer(stddev=FLAGS.STDDEV)
+    l2_reg = tf.contrib.layers.l2_regularizer(l2_scale)
+    normal_init = tf.random_normal_initializer(stddev=normal_stddev)
 
     # Add 1x1 convolution
     layer3_conv1x1 = tf.layers.conv2d(vgg_layer3_out, num_classes, 1, padding='same',
@@ -111,7 +112,7 @@ def layers(vgg_layer3_out, vgg_layer4_out, vgg_layer7_out, num_classes):
 
     return output
 
-tests.test_layers(layers)
+#tests.test_layers(layers)
 
 def optimize(nn_last_layer, correct_label, learning_rate, num_classes, global_step):
     """
@@ -124,7 +125,7 @@ def optimize(nn_last_layer, correct_label, learning_rate, num_classes, global_st
     """
 
     # Reshape output tensor
-    logits = tf.reshape(nn_last_layer, (-1, num_classes))
+    logits = tf.reshape(nn_last_layer, (-1, num_classes), name='logits')
     correct_label = tf.reshape(correct_label, (-1, num_classes))
 
     # Build TensorFlow cross entropy loss
@@ -150,9 +151,9 @@ def optimize(nn_last_layer, correct_label, learning_rate, num_classes, global_st
 
     return logits, train_op, total_loss, accuracy, mean_iou, metrics_op
 
-tests.test_optimize(optimize)
+#tests.test_optimize(optimize)
 
-def train_nn(sess, epochs, batch_size, get_batches_fn, train_op,
+def train_nn(sess, epochs, batch_size, keep_prob_value, get_batches_fn, train_op,
             cross_entropy_loss, accuracy, mean_iou, metrics_op,
             input_image, correct_label, keep_prob, learning_rate):
     """
@@ -160,6 +161,7 @@ def train_nn(sess, epochs, batch_size, get_batches_fn, train_op,
     :param sess: TF Session
     :param epochs: Number of epochs
     :param batch_size: Batch size
+    :param keep_prob_value: Dropout keep probability value
     :param get_batches_fn: Function to get batches of training data.  Call using get_batches_fn(batch_size)
     :param train_op: TF Operation to train the neural network
     :param cross_entropy_loss: TF Tensor for the amount of loss
@@ -172,7 +174,7 @@ def train_nn(sess, epochs, batch_size, get_batches_fn, train_op,
     :param learning_rate: TF Placeholder for learning rate
     """
 
-    print('Starting training for {} epochs\n'.format(epochs))
+    print('\nStarting training for {} epochs\n'.format(epochs))
 
     # Init variables
     sess.run(tf.local_variables_initializer())
@@ -186,7 +188,7 @@ def train_nn(sess, epochs, batch_size, get_batches_fn, train_op,
         for images, gt_images in get_batches_fn(batch_size):
             # Run training
             t0 = time.time()
-            _, loss, acc, iou, lr, _ = sess.run([train_op, cross_entropy_loss, accuracy, mean_iou, learning_rate, metrics_op], feed_dict={input_image: images, correct_label: gt_images, keep_prob: FLAGS.KEEP_PROB})
+            _, loss, acc, iou, lr, _ = sess.run([train_op, cross_entropy_loss, accuracy, mean_iou, learning_rate, metrics_op], feed_dict={input_image: images, correct_label: gt_images, keep_prob: keep_prob_value})
             t1 = time.time()
             time_spent = int(round((t1-t0)*1000))
 
@@ -195,24 +197,26 @@ def train_nn(sess, epochs, batch_size, get_batches_fn, train_op,
 
         print()
 
-tests.test_train_nn(train_nn)
+#tests.test_train_nn(train_nn)
 
-def learning_rate(global_step, initial_learning_rate, decay_rate, num_epochs_per_decay):
+def learning_rate(global_step, initial_learning_rate, decay_rate, num_epochs_per_decay, batch_size):
     """
     Define exponentially decaying learning rate.
     :param global_step: Variable counting the number of training steps processed
     :param initial_learning_rate: Initial learning rate
     :param decay_rate: Rate factor for learning rate
     :param num_epochs_per_decay: Number of epochs after which we should decay the learning rate
+    :param batch_size: Batch size
     :return: Learning rate
     """
 
     # Compute number of batches per epoch
     nb_images = len(glob(os.path.join('./data/data_road/training', 'image_2', '*.png')))
-    num_batches_per_epoch = math.ceil(nb_images / float(FLAGS.BATCH_SIZE))
+    num_batches_per_epoch = math.ceil(nb_images / float(batch_size))
 
     # Compute decay steps for learning rate
     decay_steps = int(num_batches_per_epoch * num_epochs_per_decay)
+    print(decay_steps)
 
     # Define learning rate
     return tf.train.exponential_decay(
@@ -222,7 +226,7 @@ def learning_rate(global_step, initial_learning_rate, decay_rate, num_epochs_per
                 decay_rate = decay_rate,
                 staircase = True)
 
-def run():
+def run(_):
     num_classes = 2
     image_shape = (160, 576)
     data_dir = './data'
@@ -244,18 +248,18 @@ def run():
 
         # Build NN using load_vgg, layers, and optimize functions
         input_image, keep_prob, vgg_layer3_out, vgg_layer4_out, vgg_layer7_out = load_vgg(sess, vgg_path)
-        nn_last_layer = layers(vgg_layer3_out, vgg_layer4_out, vgg_layer7_out, num_classes)
+        nn_last_layer = layers(vgg_layer3_out, vgg_layer4_out, vgg_layer7_out, num_classes, FLAGS.L2_SCALE, FLAGS.STDDEV)
 
         # Define exp dacay learning rate
         global_step = tf.train.get_or_create_global_step()
-        lr = learning_rate(global_step, FLAGS.INIT_LEARNING_RATE, FLAGS.LR_DECAY_FACTOR, FLAGS.EPOCHS_PER_DECAY)
+        lr = learning_rate(global_step, FLAGS.INIT_LEARNING_RATE, FLAGS.LR_DECAY_FACTOR, FLAGS.EPOCHS_PER_DECAY, FLAGS.BATCH_SIZE)
 
         # Build the TF loss, metrics, and optimizer operations
         correct_label = tf.placeholder(tf.float32, [None, None, None, num_classes])
         logits, train_op, cross_entropy_loss, accuracy, mean_iou, metrics_op = optimize(nn_last_layer, correct_label, lr, num_classes, global_step)
 
         # Train NN using the train_nn function
-        train_nn(sess, FLAGS.EPOCHS, FLAGS.BATCH_SIZE, get_batches_fn, train_op, cross_entropy_loss, accuracy, mean_iou, metrics_op, input_image, correct_label, keep_prob, lr)
+        train_nn(sess, FLAGS.EPOCHS, FLAGS.BATCH_SIZE, FLAGS.KEEP_PROB, get_batches_fn, train_op, cross_entropy_loss, accuracy, mean_iou, metrics_op, input_image, correct_label, keep_prob, lr)
 
         # Save the all the graph variables to disk
         saver = tf.train.Saver()
@@ -268,17 +272,17 @@ def run():
         helper.save_inference_samples(runs_dir, data_dir, sess, image_shape, logits, keep_prob, input_image)
 
         # Apply the trained model to a video
-        video_path = './video/test_video.mp4'
-        helper.inference_on_video(video_path, image_shape)
+        video_path = './videos/test_video.mp4'
+        #helper.inference_on_video(video_path, image_shape)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--EPOCHS', default=30, type=int, help='Number of epochs')
+    parser.add_argument('--EPOCHS', default=40, type=int, help='Number of epochs')
     parser.add_argument('--BATCH_SIZE', default=16, type=int, help='Batch size')
     parser.add_argument('--KEEP_PROB', default=0.5, type=float, help='Keep probabilty')
     parser.add_argument('--INIT_LEARNING_RATE', default=1e-4, type=float, help='Initial learning rate')
     parser.add_argument('--LR_DECAY_FACTOR', default=1e-1, type=float, help='Learning rate decay factor')
-    parser.add_argument('--EPOCHS_PER_DECAY', default=50, type=int, help='Number of epochs per decay')
+    parser.add_argument('--EPOCHS_PER_DECAY', default=20, type=int, help='Number of epochs per decay')
     parser.add_argument('--L2_SCALE', default=1e-3, type=float, help='Scale for L2 regularizers')
     parser.add_argument('--STDDEV', default=0.01, type=float, help='Standard deviation for random normal initializers')
     FLAGS, unparsed = parser.parse_known_args()

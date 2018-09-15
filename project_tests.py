@@ -86,7 +86,9 @@ def test_layers(layers):
     vgg_layer3_out = tf.placeholder(tf.float32, [None, None, None, 256])
     vgg_layer4_out = tf.placeholder(tf.float32, [None, None, None, 512])
     vgg_layer7_out = tf.placeholder(tf.float32, [None, None, None, 4096])
-    layers_output = layers(vgg_layer3_out, vgg_layer4_out, vgg_layer7_out, num_classes)
+    l2_scale = 1e-3
+    normal_stddev = 0.01
+    layers_output = layers(vgg_layer3_out, vgg_layer4_out, vgg_layer7_out, num_classes, l2_scale, normal_stddev)
 
     _assert_tensor_shape(layers_output, [None, None, None, num_classes], 'Layers Output')
 
@@ -115,6 +117,7 @@ def test_optimize(optimize):
 def test_train_nn(train_nn):
     epochs = 1
     batch_size = 2
+    keep_prob_value = 0.5
 
     def get_batches_fn(batach_size_parm):
         shape = [batach_size_parm, 2, 3, 3]
@@ -134,6 +137,7 @@ def test_train_nn(train_nn):
             'sess': sess,
             'epochs': epochs,
             'batch_size': batch_size,
+            'keep_prob_value': keep_prob_value,
             'get_batches_fn': get_batches_fn,
             'train_op': train_op,
             'cross_entropy_loss': cross_entropy_loss,
