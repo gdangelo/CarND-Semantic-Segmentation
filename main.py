@@ -272,8 +272,9 @@ def run(_):
         helper.save_inference_samples(runs_dir, data_dir, sess, image_shape, logits, keep_prob, input_image)
 
         # Apply the trained model to a video
-        video_path = './videos/test_video.mp4'
-        #helper.inference_on_video(video_path, image_shape)
+        video_dir = './videos/'
+        for file_name in os.listdir(video_dir):
+            helper.inference_on_video(video_dir + file_name)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
